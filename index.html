@@ -1,113 +1,58 @@
-<!DOCTYPE html>
-<html lang="en">
-<!--
-═══════════════════════════════════════════════════════════════════════════════
-  WCSA SWIM STAGE CHECKER — Single self-contained HTML file
-  ─────────────────────────────────────────────────────────────────────────────
-  An interactive multi-step form that recommends a swim level for a child
-  based on age, prior experience, and current skills.
+// STAGE CHECKER 
+function wcsa_swim_stage_checker() {
+    ob_start();
+    ?>
+    <div id="swim-stage-checker-wrapper">
+      <!-- ═══════════════════════════════════════════════════════════════════════════
+     PAGE STRUCTURE
+     ────────────────────────────────────────────────────────────────────────
+     .page-wrapper                Full-viewport blue background with pool image
+       └── .layout                Two-column flexbox
+           ├── .sidebar           Left: progress ring + Swim Stages list
+           └── .right-column      Right column wrapper
+               ├── .page-heading  Big white heading (sits above main card)
+               └── .main-card     White card with step tracker + question UI
+═══════════════════════════════════════════════════════════════════════════ -->
 
-  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  HOW TO NAVIGATE THIS FILE
-  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+<div class="page-wrapper">
+  <div class="layout">
 
-  CSS (inside <style>):
-    1. RESET + CSS VARIABLES   — Brand colors and fonts (edit :root here)
-    2. PAGE WRAPPER            — Pool water background image
-    3. LAYOUT                  — Two-column: sidebar + right-column
-    4. PAGE HEADING            — "Find you child's Swim Level" white heading
-    5. SIDEBAR                 — Progress ring + Swim Stages list
-    6. MAIN CARD               — White card containing tracker + question UI
-    7. STEP TRACKER            — Bordered grey box with 4 numbered dots
-    8. QUESTION SECTION        — .q-section wrapper + .q-container styles
-    9. OPTIONS GRID            — Answer buttons (3-col, 2-col, large variants)
-   10. ALERT BOX               — Yellow info box (3-year exception note)
-   11. NAV BUTTONS             — Back / Continue pill buttons
-   12. RESULT PANEL            — Final screen with animal icon + buttons
+    <!-- ── SIDEBAR ── -->
+    <aside class="sidebar">
+      <div class="sidebar-title">Your Progress</div>
+      <div class="progress-ring-wrap">
+        <div class="ring-container">
+          <svg class="ring-svg" viewBox="0 0 130 130">
+            <circle class="ring-bg" cx="65" cy="65" r="58"/>
+            <circle class="ring-fill" id="ringFill" cx="65" cy="65" r="58"/>
+          </svg>
+          <div class="ring-label" id="ringLabel">0%</div>
+        </div>
+      </div>
+      <div class="stages-label">Swim Stages</div>
+      <div id="stagesList"></div>
+    </aside>
 
-  Markup (inside <body>):
-    .page-wrapper
-      └── .layout
-          ├── .sidebar              (left)
-          └── .right-column         (right)
-              ├── .page-heading     ← Heading sits above main-card
-              └── .main-card        ← Populated by JS renderAll()
-                  ├── .step-tracker (1st container — top of card)
-                  └── .q-section    (2nd container — holds the rest:
-                                     q-container, option-grid, alert-box, nav-row)
+    <!-- ── RIGHT COLUMN: heading on top, main card below ── -->
+    <div class="right-column">
+      <div class="page-heading">
+        <h1>Find your child's Swim Level</h1>
+        <p>Answer a few quick questions and we'll guide you to the right stage.</p>
+      </div>
+      <!-- Main card is populated dynamically by renderAll() in the script below -->
+      <main class="main-card" id="mainCard"></main>
+    </div>
 
-  JavaScript (inside <script>):
-    1. ASSET DEFINITIONS       — SVGs for stages and option icons
-    2. DATA CONFIG             — STAGES, STEPS, AGE_OPTIONS, LEVEL_QUESTIONS,
-                                 BEGINNER_QUESTIONS — EDIT QUESTION TEXT HERE
-    3. STATE                   — Current step, answers, computed result
-    4. HELPERS                 — Progress calculation, result builders
-    5. RESULT LOGIC            — resultForAge, resultFromBeginner,
-                                 resultFromLevel — EDIT RESULT TIER NOTES HERE
-    6. AGE_RESULT_CONTENT      — Age-based result copy — EDIT AGE COPY HERE
-    7. RENDERERS               — renderStep1..renderResult — EDIT MARKUP HERE
-    8. ACTIONS                 — Click handlers (selectAge, answerLevel, etc)
-    9. NAVIGATION              — continueStep, continueBeginner,
-                                 continueLevel, goBack — EDIT FLOW HERE
-   10. MAIN RENDER LOOP        — renderAll() ties it all together
+  </div>
+</div>
+    </div>
 
-  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  FLOW OVERVIEW
-  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  Step 1 — AGE                                              [progress: 0%]
-    └─ Under 6m / 6-12m / 12m-2y / 2-3y / 3-4y → direct result page (100%)
-    └─ 4 years +                                → Step 2
-
-  Step 2 — EXPERIENCE ("Has the child had lessons?")        [progress: 25%]
-    └─ Yes                                      → Step 3 (Skills, Level 1)
-    └─ No                                       → Beginner check (Q1)
-
-       Beginner check (sub-flow of Step 2, also 25%)
-         Q1 No                                  → Level 1 Turtles · BEGINNER
-         Q1 Yes, Q2 No                          → Level 1 Turtles · BEGINNER
-         Q1+Q2 Yes, Q3 No                       → Level 1 Turtles · IMPROVER
-         All Yes                                → Level 1 Turtles · ADVANCED
-
-  Step 3 — SKILLS (per-level questions)                     [progress: 50%]
-    For each level 1..4, ask 3 questions:
-      Q1 No                                     → Level X · BEGINNER
-      Q2 No                                     → Level X · IMPROVER
-      Q3 No                                     → Level X · ADVANCED
-      Q3 Yes                                    → Move to Level X+1, Q1
-    All Yes through Level 4                     → Level 5 (Dolphins/Mantas/Orcas)
-
-  Step 4 — RESULT                                          [progress: 100%]
-    Displays stage animal, headline, description, Enquire / Restart buttons.
-
-  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  COMMON EDITS — quick reference
-  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  • Change brand colors          → :root CSS variables (CSS section 1)
-  • Change background image      → .page-wrapper background URL (CSS section 2)
-  • Edit question wording        → LEVEL_QUESTIONS / BEGINNER_QUESTIONS (JS sec 2)
-  • Edit age-result copy         → AGE_RESULT_CONTENT object (JS section 6)
-  • Change tier notes per level  → NOTES inside resultFromLevel() (JS section 5)
-  • Change Level 5 result text   → continueLevel() — search "stageIdx: 4"
-  • Change stage names/descs     → STAGES array (JS section 2)
-  • Add a new age bracket        → AGE_OPTIONS + AGE_ICONS + resultForAge
-  • Hook up Enquire button       → renderResult() — currently no onclick
-  • Make .q-section visually     → uncomment background/border styles in CSS
-    distinct (like step-tracker)   section 8 (.q-section block)
-═══════════════════════════════════════════════════════════════════════════════
--->
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Find Your Child's Swim Level</title>
-<link href="https://fonts.googleapis.com/css2?family=Dosis:wght@400;500;600;700;800&family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
-  /* ═══════════════════ 1. RESET + CSS VARIABLES ═══════════════════
+   /* ═══════════════════ 1. RESET + CSS VARIABLES ═══════════════════
      Base reset and brand color/font tokens. Edit colors at :root */
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { height: 100%; }
-  :root {
+  #swim-stage-checker-wrapper {
     --blue: #024070;
     --yellow: #F5C842;
     --black: #000000;
@@ -118,7 +63,52 @@
     --font-primary: 'Poppins', sans-serif;
     --font-secondary: 'Dosis', sans-serif;
   }
-  body { font-family: var(--font-secondary); background: #1A90D9; }
+  #swim-stage-checker-wrapper { 
+	  font-family: var(--font-secondary); 
+	  background: #1A90D9; 
+  }
+		
+		.elementor-kit-6 .option-btn {
+  background: #ffffff;
+  color: #024070;
+  font-family: 'Poppins', sans-serif;
+  font-size: 1.05rem;
+  font-weight: 500;
+  border-radius: 23px;
+}
+.elementor-kit-6 .option-btn:hover,
+.elementor-kit-6 .option-btn.selected {
+  border-color: #F5C842;
+}
+.elementor-kit-6 .btn-continue {
+  background: #F5C842;
+  color: #024070;
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  border-radius: 100px;
+}
+.elementor-kit-6 .btn-back {
+  background: #E8E8E8;
+  color: #607380;
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  border-radius: 100px;
+}
+.elementor-kit-6 .btn-enquire {
+  background: #F5C842;
+  color: #024070;
+  font-family: 'Poppins', sans-serif;
+  border-radius: 100px;
+	font-weight:500 !important;
+}
+.elementor-kit-6 .btn-restart {
+  background: #024070;
+  color: #ffffff;
+  font-family: 'Poppins', sans-serif;
+  border-radius: 100px;
+}
 
   /* ═══════════════════ 2. PAGE WRAPPER ═══════════════════
      Full-viewport blue container with pool-water background image.
@@ -126,7 +116,7 @@
   .page-wrapper {
     background: #1A90D9 url("https://mediumvioletred-squirrel-272452.hostingersite.com/wp-content/uploads/2026/06/Stage-Checker-Age-scaled.webp") center center / cover no-repeat fixed;
     min-height: 110vh;
-    padding: 24px 28px 32px;
+    padding: 2em;
     position: relative;
     display: flex;
     flex-direction: column;
@@ -245,7 +235,7 @@
 
   .stage-item.active { border-color: var(--yellow); }
   .stage-icon { width: 56px; height: 56px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-  .stage-icon svg { max-width: 56px; max-height: 56px; width: auto; height: auto; }
+  .stage-icon svg { max-width: 56px; max-height: 56px; width: 100%; height: 100%; }
   .stage-level { font-family: var(--font-primary); font-size: 14px; font-weight: 500; color: #1E98DD; text-transform: uppercase; letter-spacing: 0.05em; }
   .stage-name { font-family: var(--font-primary); font-size: 16px; font-weight: 500; color: var(--blue); line-height: 1.15; }
   .stage-desc { font-family: var(--font-primary); font-size: 12px; color: var(--text); line-height: 1.35; margin-top: 2px; font-weight: 400;}
@@ -344,7 +334,7 @@
     gap: 14px;
     margin-bottom: 18px;
   }
-  .option-grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
+  .option-grid.cols-2 { grid-template-columns: 1fr; }
   .option-grid.cols-1 { grid-template-columns: 1fr; }
   .option-btn {
     display: flex; 
@@ -364,31 +354,36 @@
   .option-btn:hover { border-color: var(--yellow);  }
   .option-btn.selected { border-color: var(--yellow); }
   .option-btn.option-large {
-    /* Match Figma: icon stays on left, text is CENTERED in the remaining space.
-       Removes the default justify-content: space-between from .option-btn. */
-    padding: 38px 28px;
-    min-height: 140px;
+    padding: 28px 32px;
+    min-height: 88px;
+    flex-direction: row;
     justify-content: flex-start;
-    gap: 0;
+    gap: 24px;
     font-size: 1.15rem;
   }
   .option-btn.option-large > span {
     flex: 1;
-    text-align: right;
+    text-align: left;
   }
   .option-btn.option-yesno {
-    padding: 22px 28px;
-    min-height: 88px;
-    justify-content: space-between;
+    padding: 22px 32px;
+    min-height: 80px;
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 24px;
     font-size: 1.15rem;
+  }
+  .option-btn.option-yesno > span {
+    flex: 1;
+    text-align: left;
   }
   .option-icon { flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
   .option-btn:not(.option-large):not(.option-yesno) .option-icon { width: 30px; height: 30px; }
-  .option-btn:not(.option-large):not(.option-yesno) .option-icon svg { max-width: 30px; max-height: 30px; width: auto; height: auto; }
+  .option-btn:not(.option-large):not(.option-yesno) .option-icon svg { max-width: 30px; max-height: 30px; width: 100%; height: 100%; }
   .option-btn.option-large .option-icon { width: 80px; height: 60px; }
-  .option-btn.option-large .option-icon svg { max-width: 80px; max-height: 60px; width: auto; height: auto; }
+  .option-btn.option-large .option-icon svg { max-width: 60px; max-height: 60px; width: 100%; height: 100%; }
   .option-btn.option-yesno .option-icon { width: 70px; height: 70px; }
-  .option-btn.option-yesno .option-icon svg { max-width: 70px; max-height: 70px; width: auto; height: auto; }
+  .option-btn.option-yesno .option-icon svg { max-width: 70px; max-height: 70px; width: 100%; height: 100%; }
 
   /* ═══════════════════ 10. ALERT BOX ═══════════════════
      Yellow info box (used for the 3-year-old exception note) */
@@ -444,7 +439,7 @@
     font-size: 0.95rem; color: var(--text);
     max-width: 90%;
     line-height: 1.6;
-    margin-bottom: 24px;
+    margin-bottom: 24px !important;
   }
   .btn-enquire, .btn-restart {
     display: block; width: 100%; max-width: 380px;
@@ -458,63 +453,195 @@
   .btn-restart { background: var(--blue); color: var(--white); }
   .btn-restart:hover { background: #013460; }
 
-  @media (max-width: 900px) {
-    .layout { flex-direction: column; }
-    .sidebar { width: 100%; min-width: unset; }
-    .option-grid { grid-template-columns: repeat(2,1fr); }
+  @media (max-width: 1080px) {
+    /* ─── Desktop narrow: sidebar shrinks, padding tightens ─── */
+    .layout { gap: 18px; }
+    .sidebar { width: 280px; min-width: 280px; padding: 16px 10px; }
+    .stage-item { gap: 14px; padding: 10px 12px; }
+    .stage-icon { width: 48px; height: 48px; }
+    .stage-icon svg { max-width: 48px; max-height: 48px; }
+    .step-tracker { padding: 24px 14px; }
+    .step-label { font-size: 0.88rem; }
+    .step-line { margin: 0 8px; }
+    .q-title { width: 80%; }
+    .option-btn.option-large { padding: 32px 22px; min-height: 130px; }
   }
-  @media (max-width: 540px) {
-    .option-grid { grid-template-columns: 1fr; }
+
+  @media (max-width: 900px) {
+    /* ─── Tablet portrait: STACK layout vertically ─── */
+    /*    Order: Heading + Main card (right-column) on top,
+                 Sidebar moves to the bottom as a compact strip          */
+    .layout { flex-direction: column; gap: 18px; }
+    .right-column { order: 1; }
+    .sidebar { order: 2; }
+
+    /* Sidebar becomes a horizontal row */
+    .sidebar {
+      width: 100%;
+      min-width: unset;
+      flex-direction: row;
+      align-items: center;
+      padding: 14px 18px;
+      gap: 18px;
+    }
+    .sidebar-title {
+      font-size: 16px;
+      text-align: left;
+      margin-bottom: 0;
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+    .progress-ring-wrap { margin-bottom: 0; flex-shrink: 0; }
+    .ring-container, .ring-svg { width: 70px; height: 70px; }
+    .ring-label { font-size: 1.1rem; }
+
+    /* Stages: horizontal scroll, compact chips */
+    .stages-label { display: none; }
+    #stagesList {
+      display: flex;
+      gap: 10px;
+      overflow-x: auto;
+      flex: 1;
+      padding-bottom: 4px;
+      -webkit-overflow-scrolling: touch;
+    }
+    .stage-item {
+      flex-direction: row;
+      min-width: max-content;
+      margin-bottom: 0;
+      padding: 10px 14px;
+      gap: 10px;
+    }
+    .stage-icon { width: 34px; height: 34px; }
+    .stage-icon svg { max-width: 34px; max-height: 34px; }
+    .stage-desc { display: none; }
+    .stage-level { font-size: 11px; }
+    .stage-name { font-size: 13px; }
+
+    /* Heading + content adjustments */
+    .page-heading { padding: 4px 4px 16px; }
+    .page-heading h1 { font-size: clamp(1.9rem, 5vw, 2.8rem); }
+    .page-heading p { font-size: 0.95rem; }
+    .q-title { width: 100%; }
+    .option-grid { grid-template-columns: repeat(2, 1fr); }
+    .main-card { padding: 22px 18px; }
+  }
+
+  @media (max-width: 640px) {
+    /* ─── Mobile: simplify step tracker, shrink everything ─── */
+    .page-wrapper { padding: 16px 12px; }
+    .layout { gap: 14px; }
+    .main-card { border-radius: 24px; padding: 18px 14px; }
+
+    /* Sidebar: still horizontal but tighter */
+    .sidebar { padding: 12px 14px; border-radius: 24px; gap: 12px; }
+    .sidebar-title { font-size: 14px; }
+    .ring-container, .ring-svg { width: 60px; height: 60px; }
+    .ring-label { font-size: 0.95rem; }
+    .stage-item { padding: 10px 23px; gap: 8px; }
+    .stage-icon { width: 30px; height: 30px; }
+    .stage-icon svg { max-width: 30px; max-height: 30px; }
+
+    /* Step tracker: hide text labels, keep just numbered dots */
+    .step-tracker { padding: 14px 12px; border-radius: 24px; }
+    .step-label { display: none; }
+    .step-item { gap: 0; }
+    .step-line { margin: 0 6px; }
+
+    /* Q-text */
+    .q-meta { font-size: 0.88rem; }
+    .q-title { font-size: clamp(1.25rem, 4.2vw, 1.55rem); }
+    .q-subtitle { font-size: 0.92rem; width: 100%;}
+
+
+    /* Option boxes: smaller on mobile */
+    .option-btn { padding: 18px 16px; min-height: 56px; font-size: 0.95rem; }
+    .option-btn.option-large {
+      padding: 20px 22px;
+      min-height: 76px;
+      flex-direction: row;
+      gap: 18px;
+      font-size: 1rem;
+    }
+    .option-btn.option-large > span { text-align: left; }
+    .option-btn.option-large .option-icon { width: 56px; height: 44px; }
+    .option-btn.option-large .option-icon svg { max-width: 56px; max-height: 44px; }
+    .option-btn.option-yesno {
+      padding: 16px 22px;
+      min-height: 68px;
+      flex-direction: row;
+      gap: 18px;
+      font-size: 1rem;
+    }
+    .option-btn.option-yesno > span { text-align: left; }
+    .option-btn.option-yesno .option-icon { width: 44px; height: 44px; }
+    .option-btn.option-yesno .option-icon svg { max-width: 44px; max-height: 44px; }
+
+    /* Alert box */
+    .alert-box { padding: 14px 16px; }
+    .alert-box-title { font-size: 0.95rem; }
+    .alert-box p { font-size: 0.78rem; }
+
+    /* Nav buttons */
+    .btn-back { padding: 11px 22px; font-size: 0.85rem; }
+    .btn-continue { padding: 11px 26px; font-size: 0.85rem; }
+
+    /* Result panel */
+    .result-icon { width: 150px; height: 110px; margin-bottom: 16px; }
+    .result-headline { font-size: clamp(1.25rem, 4.5vw, 1.6rem); margin-bottom: 14px; }
+    .result-desc { font-size: 0.88rem; max-width: 100%; margin-bottom: 18px !important; }
+    .btn-enquire, .btn-restart { padding: 13px; font-size: 0.95rem; }
+  }
+
+  @media (max-width: 480px) {
+	  .option-btn {
+    justify-content: flex-start;
+    gap: 16px;
+}
+    /* ─── Small mobile: single-column grids, tightest spacing ─── */
+    .page-wrapper { padding: 12px 10px; }
+    .layout { gap: 12px; }
+
+    /* Age grid stays 2-col; yes/no (cols-2) stays 1-col */
+    .option-grid { grid-template-columns: repeat(1, 1fr); gap: 10px; }
     .option-grid.cols-2 { grid-template-columns: 1fr; }
-    .main-card { padding: 18px 18px 22px; }
-    .page-wrapper { padding: 16px; }
+
+    /* Yes/No and Experience buttons stay horizontal row */
+    .option-btn.option-large,
+    .option-btn.option-yesno {
+      flex-direction: row;
+      gap: 16px;
+      padding: 16px 14px;
+    }
+    .option-btn.option-large > span,
+    .option-btn.option-yesno > span { text-align: left; }
+
+    /* Heading smaller */
+    .page-heading { padding: 2px 4px 12px; }
+    .page-heading h1 { font-size: 1.7rem; line-height: 1.05; }
+    .page-heading p { font-size: 0.85rem; }
+
+    /* Step tracker: smallest dots */
+    .step-dot { width: 24px; height: 24px; font-size: 0.78rem; }
+    .step-line { margin: 0 4px; }
+
+    /* Main card */
+    .main-card { padding: 16px 12px; border-radius: 22px; min-height: 760px !important; }
+
+    /* Sidebar slightly tighter */
+    .sidebar { padding: 12px; border-radius: 22px; }
+    .sidebar-title { display: none; }
+
+    /* Result */
+    .result-icon { width: 130px; height: 95px; }
+    .btn-enquire, .btn-restart { font-size: 0.9rem; padding: 12px; }
+
+    .q-section{
+      padding: 20px 10px;
+    }
+    .q-subtitle { font-size: 0.92rem; width: 100%;}
   }
 </style>
-</head>
-<body>
-
-<!-- ═══════════════════════════════════════════════════════════════════════════
-     PAGE STRUCTURE
-     ────────────────────────────────────────────────────────────────────────
-     .page-wrapper                Full-viewport blue background with pool image
-       └── .layout                Two-column flexbox
-           ├── .sidebar           Left: progress ring + Swim Stages list
-           └── .right-column      Right column wrapper
-               ├── .page-heading  Big white heading (sits above main card)
-               └── .main-card     White card with step tracker + question UI
-═══════════════════════════════════════════════════════════════════════════ -->
-
-<div class="page-wrapper">
-  <div class="layout">
-
-    <!-- ── SIDEBAR ── -->
-    <aside class="sidebar">
-      <div class="sidebar-title">Your Progress</div>
-      <div class="progress-ring-wrap">
-        <div class="ring-container">
-          <svg class="ring-svg" viewBox="0 0 130 130">
-            <circle class="ring-bg" cx="65" cy="65" r="58"/>
-            <circle class="ring-fill" id="ringFill" cx="65" cy="65" r="58"/>
-          </svg>
-          <div class="ring-label" id="ringLabel">0%</div>
-        </div>
-      </div>
-      <div class="stages-label">Swim Stages</div>
-      <div id="stagesList"></div>
-    </aside>
-
-    <!-- ── RIGHT COLUMN: heading on top, main card below ── -->
-    <div class="right-column">
-      <div class="page-heading">
-        <h1>Find you child's Swim Level</h1>
-        <p>Answer a few quick questions and we'll guide you to the right stage.</p>
-      </div>
-      <!-- Main card is populated dynamically by renderAll() in the script below -->
-      <main class="main-card" id="mainCard"></main>
-    </div>
-
-  </div>
-</div>
 
 <script>
 /* ═══════════════════ 1. ASSET DEFINITIONS: STAGE SVGs ═══════════════════
@@ -625,7 +752,7 @@ const STEPS = [
 const AGE_OPTIONS = [
   { key:'under6m', label:'Under 6 months' },
   { key:'6to12m',  label:'6 \u2013 12 months' },
-  { key:'12mto2y', label:'12 months \u2013 2 yrs' },
+  { key:'12mto2y', label:'12 months \u2013 2 years' },
   { key:'2to3y',   label:'2 \u2013 3 years' },
   { key:'3to4y',   label:'3 \u2013 4 years' },
   { key:'4yplus',  label:'4 years +' },
@@ -638,9 +765,9 @@ const LEVEL_QUESTIONS = {
   1: { // Turtles
     name: 'Turtles', level: 'Level 1',
     qs: [
-      { q: "Can they put their face in the water and blow bubbles?", sub: "Not just a little splash \u2014 their face actually goes in the water" },
-      { q: "Can they swim with a noodle or float confidently, without anyone holding them?", sub: "The key word is confidently \u2014 happy and relaxed, not clinging on or panicking" },
-      { q: "Can they float on their back without anyone holding them, AND jump in and swim safely back to the wall?", sub: "Back float with no adult AND confident water entry with a safe return" },
+      { q: "Can they put their face in the water and blow bubbles?", sub: "Not just a little splash \u2014 their face actually goes in the water." },
+      { q: "Can they swim with a noodle or float confidently, without anyone holding them?", sub: "The key word is confidently \u2014 happy and relaxed, not clinging on or panicking." },
+      { q: "Can they float on their back without anyone holding them, AND jump in and swim safely back to the wall?", sub: "Back float with no adult AND confident water entry with a safe return." },
     ],
   },
   2: { // Otters
@@ -671,9 +798,9 @@ const LEVEL_QUESTIONS = {
 
 /* └─ BEGINNER_QUESTIONS — 3 questions for the "No lessons" sub-flow */
 const BEGINNER_QUESTIONS = [
-  { q: "Would they be happy to jump into the water holding the teacher's hands?", sub: "Think about whether they would be nervous or scared, or happy to have a go" },
-  { q: "Could they jump in without holding anyone's hand \u2014 a proper jump in on their own?", sub: "A full jump where their whole body goes under" },
-  { q: "If they jumped in, could they turn around and get themselves back to the wall safely?", sub: "Child in the class on their own" },
+  { q: "Would they be happy to jump into the water holding the teacher's hands?", sub: "Think about whether they would be nervous or scared, or happy to have a go." },
+  { q: "Could they jump in without holding anyone's hand \u2014 a proper jump in on their own?", sub: "A full jump where their whole body goes under." },
+  { q: "If they jumped in, could they turn around and get themselves back to the wall safely?", sub: "Child in the class on their own." },
 ];
 
 /* ═══════════════════ 3. STATE ═══════════════════
@@ -837,7 +964,7 @@ function renderStep1() {
       </div>
       <div class="alert-box">
         <div class="alert-box-title">3-year-old exception \u2014 Ducklings (Teacher & Toddler)</div>
-        <p>If the child is 3 AND the parent says they are confident in the water and happy to go in without mum or dad, they could be suitable for our Ducklings class (teacher-led, no parent in water). Confidence is the key thing \u2014 if there is any doubt, keep them in Adult & Child</p>
+        <p>If the child is 3 AND the parent says they are confident in the water and happy to go in without mum or dad, they could be suitable for our Ducklings class (teacher-led, no parent in water). Confidence is the key thing \u2014 if there is any doubt, keep them in Adult & Child.</p>
       </div>
       <div class="nav-row">
         <button class="btn-back" onclick="goBack()">\u2190 Back</button>
@@ -985,8 +1112,8 @@ function renderResult() {
       ${iconBlock}
       <div class="result-headline">${headline}</div>
       <p class="result-desc">${desc}</p>
-      <button class="btn-enquire">Enquire about classes</button>
-      <button class="btn-restart" onclick="restart()">Start again</button>
+      <a class="btn-enquire" href="/contact-us">Enquire About Classes</a>
+      <button class="btn-restart" onclick="restart()">Start Again</button>
     </div>`;
 }
 
@@ -1186,9 +1313,88 @@ function renderAll() {
 
 renderAll();
 </script>
-</body>
-</html>
+    <?php
+    return ob_get_clean();
+}
+add_shortcode( 'swim_stage_checker', 'wcsa_swim_stage_checker' );
 
 
 
+// LOCATION PAGE ACF CODES
 
+// Register shortcode to render working time repeater
+add_shortcode('wcsa_timings', function() {
+    $rows = get_field('working_time');
+    if (!$rows) return '';
+
+    $output = '<div class="wcsa-timings">';
+
+    foreach ($rows as $row) {
+        $start_raw = $row['start_working_time'];
+        $end_raw   = $row['end_working_time'];
+
+        $start = $start_raw ? date('g:i A', strtotime($start_raw)) : '';
+        $end   = $end_raw   ? date('g:i A', strtotime($end_raw))   : '';
+
+        // Strip :00 from on-the-hour times
+        $start = preg_replace('/:00\b/', '', $start);
+        $end   = preg_replace('/:00\b/', '', $end);
+
+        $output .= '<div class="wcsa-timing-row">';
+        $output .= '<span class="wcsa-day">' . esc_html($row['working_day']) . '</span>';
+        $output .= '<span class="wcsa-time">' . esc_html($start . ' – ' . $end) . '</span>';
+        $output .= '</div>';
+    }
+
+    $output .= '</div>';
+    return $output;
+});
+
+
+// Register shortcode to render directions grid
+add_shortcode('wcsa_directions', function() {
+    $rows = get_field('directions');
+    if (!$rows) return '';
+
+    $output = '<div class="wcsa-directions-grid">';
+
+    foreach ($rows as $row) {
+        $image        = $row['step_image'];       // returns array with url, alt, etc.
+        $explainer    = $row['step_explainer'];   // returns HTML string from WYSIWYG
+
+        $img_url = '';
+        $img_alt = '';
+
+        // step_image is an ACF image field — returns array
+        if (is_array($image) && !empty($image['url'])) {
+            $img_url = esc_url($image['url']);
+            $img_alt = esc_attr($image['alt']);
+        } elseif (is_numeric($image)) {
+            // fallback: if stored as attachment ID
+            $img_url = esc_url(wp_get_attachment_url($image));
+            $img_alt = esc_attr(get_post_meta($image, '_wp_attachment_image_alt', true));
+        }
+
+        $output .= '<div class="wcsa-direction-card">';
+
+        // Image block — only render if image exists
+        if ($img_url) {
+            $output .= '<div class="wcsa-direction-img-wrap">';
+            $output .= '<img src="' . $img_url . '" alt="' . $img_alt . '" loading="lazy" />';
+            $output .= '</div>';
+        }
+
+        // Text block — WYSIWYG outputs HTML directly
+        if ($explainer) {
+            $output .= '<div class="wcsa-direction-text">';
+            $output .= wp_kses_post($explainer); // safe HTML output
+            $output .= '</div>';
+        }
+
+        $output .= '</div>'; // .wcsa-direction-card
+    }
+
+    $output .= '</div>'; // .wcsa-directions-grid
+
+    return $output;
+});
